@@ -1,0 +1,118 @@
+from web3 import Web3
+
+# Connecting to the Ethereum and BSC nodes
+eth_provider_url = 'https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID'
+bsc_provider_url = 'https://bsc-dataseed.binance.org/'
+
+eth_w3 = Web3(Web3.HTTPProvider(eth_provider_url))
+bsc_w3 = Web3(Web3.HTTPProvider(bsc_provider_url))
+
+# Ensure both networks are connected
+assert eth_w3.isConnected(), "Ethereum connection failed"
+assert bsc_w3.isConnected(), "BSC connection failed"
+
+# Smart Contract addresses and ABI (Example, assuming you already have deployed contracts)
+eth_contract_address = '0xYourEthereumContractAddress'
+bsc_contract_address = '0xYourBSCContractAddress'
+eth_contract_abi = [...]  # ABI for Ethereum contract
+bsc_contract_abi = [...]  # ABI for BSC contract
+
+eth_contract = eth_w3.eth.contract(address=eth_contract_address, abi=eth_contract_abi)
+bsc_contract = bsc_w3.eth.contract(address=bsc_contract_address, abi=bsc_contract_abi)
+
+# User info
+user_eth_address = '0xYourEthereumAddress'
+user_bsc_address = '0xYourBSCAddress'
+private_key = 'YOUR_PRIVATE_KEY'
+
+# Swap Function
+def swap_tokens(amount, token_address_from, token_address_to, chain_from, chain_to):
+    if chain_from == 'ethereum' and chain_to == 'bsc':
+        # Lock tokens on Ethereum
+        tx_hash = lock_tokens_eth(amount, token_address_from, user_eth_address)
+        
+        # Verify if lock is successful and notify BSC chain (this can be done via an oracle/relayer)
+        if verify_lock_on_eth(tx_hash):
+            # Unlock tokens on BSC
+            release_tokens_bsc(amount, token_address_to, user_bsc_address)
+            print("Tokens swapped successfully!")
+        else:
+            print("Locking on Ethereum failed.")
+        
+    elif chain_from == 'bsc' and chain_to == 'ethereum':
+        # Lock tokens on BSC
+        tx_hash = lock_tokens_bsc(amount, token_address_from, user_bsc_address)
+        
+        # Verify if lock is successful and notify Ethereum chain
+        if verify_lock_on_bsc(tx_hash):
+            # Release tokens on Ethereum
+            release_tokens_eth(amount, token_address_to, user_eth_address)
+            print("Tokens swapped successfully!")
+        else:
+            print("Locking on BSC failed.")
+    
+    else:
+        print("Unsupported chain pair.")
+
+# Lock tokens on Ethereum
+def lock_tokens_eth(amount, token_address, user_address):
+    token_contract = eth_w3.eth.contract(address=token_address, abi=ERC20_ABI)
+    nonce = eth_w3.eth.get_transaction_count(user_address)
+    tx = token_contract.functions.transfer(eth_contract_address, amount).buildTransaction({
+        'from': user_address,
+        'nonce': nonce,
+        'gas': 200000,  # Example gas limit
+        'gasPrice': eth_w3.toWei('20', 'gwei')
+    })
+    signed_tx = eth_w3.eth.account.sign_transaction(tx, private_key)
+    tx_hash = eth_w3.eth.sendRawTransaction(signed_tx.rawTransaction)
+    return tx_hash
+
+# Lock tokens on BSC
+def lock_tokens_bsc(amount, token_address, user_address):
+    token_contract = bsc_w3.eth.contract(address=token_address, abi=ERC20_ABI)
+    nonce = bsc_w3.eth.get_transaction_count(user_address)
+    tx = token_contract.functions.transfer(bsc_contract_address, amount).buildTransaction({
+        'from': user_address,
+        'nonce': nonce,
+        'gas': 200000,  # Example gas limit
+        'gasPrice': bsc_w3.toWei('5', 'gwei')
+    })
+    signed_tx = bsc_w3.eth.account.sign_transaction(tx, private_key)
+    tx_hash = bsc_w3.eth.sendRawTransaction(signed_tx.rawTransaction)
+    return tx_hash
+
+# Release tokens on Ethereum
+def release_tokens_eth(amount, token_address, user_address):
+    tx = eth_contract.functions.releaseTokens(amount, user_address).buildTransaction({
+        'from': user_address,
+        'gas': 200000,
+        'gasPrice': eth_w3.toWei('20', 'gwei')
+    })
+    signed_tx = eth_w3.eth.account.sign_transaction(tx, private_key)
+    tx_hash = eth_w3.eth.sendRawTransaction(signed_tx.rawTransaction)
+    return tx_hash
+
+# Release tokens on BSC
+def release_tokens_bsc(amount, token_address, user_address):
+    tx = bsc_contract.functions.releaseTokens(amount, user_address).buildTransaction({
+        'from': user_address,
+        'gas': 200000,
+        'gasPrice': bsc_w3.toWei('5', 'gwei')
+    })
+    signed_tx = bsc_w3.eth.account.sign_transaction(tx, private_key)
+    tx_hash = bsc_w3.eth.sendRawTransaction(signed_tx.rawTransaction)
+    return tx_hash
+
+# Verify lock on Ethereum (Using event logs or external oracle mechanism)
+def verify_lock_on_eth(tx_hash):
+    # In a real-world scenario, you would listen to logs or wait for oracle confirmation
+    return eth_w3.eth.getTransactionReceipt(tx_hash)
+
+# Verify lock on BSC
+def verify_lock_on_bsc(tx_hash):
+    # Similar verification as Ethereum
+    return bsc_w3.eth.getTransactionReceipt(tx_hash)
+
+# Example usage: Swap 100 tokens from Ethereum to BSC
+swap_tokens(100, '0xTokenAddressOnETH', '0xTokenAddressOnBSC', 'ethereum', 'bsc')
